@@ -1,6 +1,6 @@
 // Keeps Circuit Bench working offline once it has been opened. The page itself is fetched fresh when online
 // (so updates arrive), everything else is served from the cache first.
-const CACHE = 'circuit-bench-v1';
+const CACHE = 'circuit-bench-v2';
 const CORE = ['./', 'index.html', 'manifest.webmanifest', 'icons/icon-192.png', 'icons/icon-512.png', 'icons/icon-180.png',
   'vendor/jszip.min.js', 'vendor/jspdf.umd.min.js', 'fz6-index.json'];
 self.addEventListener('install', e => { e.waitUntil(caches.open(CACHE).then(c => Promise.allSettled(CORE.map(u => c.add(u))))); self.skipWaiting(); });
