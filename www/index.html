@@ -116,6 +116,9 @@ button{cursor:pointer}
 .issue.bad{border-left-color:var(--bad)}
 .issue.ok{border-left-color:var(--good)}
 .closeSheet{display:none}
+.inspHead{display:flex;align-items:center;justify-content:space-between;gap:8px;position:sticky;top:-14px;z-index:2;background:var(--panel);margin:-14px -14px 12px;padding:10px 14px;border-bottom:1px solid var(--line)}
+.inspHead b{font-family:var(--f-display);font-size:16px}
+.inspHead .btn{display:inline-flex;align-items:center;gap:6px;min-height:40px;padding:0 14px}
 .pbtn.fzc img{width:100%;height:40px;object-fit:contain}
 .fzph{display:block;width:100%;height:40px;border-radius:6px;background:repeating-linear-gradient(45deg,var(--panel2),var(--panel2) 6px,var(--line) 6px,var(--line) 7px)}
 .fzCredit{font-size:11.5px;color:var(--muted);margin:14px 0 0;line-height:1.4}.fzCredit a{color:inherit}
@@ -183,8 +186,10 @@ button{cursor:pointer}
 .binHead .btn{display:inline-flex;align-items:center;gap:6px;min-height:40px;padding:0 14px}
 @media (min-width: 900px){
   .work.binHidden{grid-template-columns:minmax(0,1fr) 290px}
-  .work.binHidden > .bin{display:none}
-  .work.binHidden #tParts{display:grid}
+  .work.inspHidden{grid-template-columns:210px minmax(0,1fr)}
+  .work.binHidden.inspHidden{grid-template-columns:minmax(0,1fr)}
+  .work.binHidden > .bin,.work.inspHidden > .insp{display:none}
+  .work.binHidden #tParts,.work.inspHidden #tInfo{display:grid}
 }
 @keyframes spin{to{transform:rotate(360deg)}}
 .spin{animation:spin .6s linear infinite;transform-box:fill-box;transform-origin:center}
@@ -239,7 +244,7 @@ button{cursor:pointer}
         <button class="tool" id="tRot" title="Rotate (R)" aria-label="Rotate selected"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M20 12a8 8 0 1 1-3-6.2"/><path d="M20 4v5h-5"/></svg></button>
         <button class="tool" id="tLock" title="Lock / unlock position" aria-label="Lock selected"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg></button>
         <button class="tool" id="tDel" title="Delete" aria-label="Delete selected"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13"/></svg></button>
-        <button class="tool mobileOnly" id="tInfo" title="Inspector" aria-label="Show inspector"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7.5v.5"/></svg></button>
+        <button class="tool mobileOnly" id="tInfo" title="Details" aria-label="Show details panel"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7.5v.5"/></svg></button>
         <div class="wcolors" id="wcolors" aria-label="Wire color"></div>
         <button class="tool" id="tLayer" title="Trace layer" aria-label="Switch trace layer" hidden>Top</button>
         <button class="tool" id="tRoute" title="Quick route" aria-label="Quick route all connections" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="5" cy="6" r="2"/><circle cx="19" cy="18" r="2"/><path d="M7 6h6v12h4"/></svg></button>
@@ -1776,7 +1781,7 @@ document.addEventListener('pointerup', () => { if (inspSliding) { inspSliding = 
 document.addEventListener('pointercancel', () => { inspSliding = false; }, true);
 function renderInspector() {
   const el = $('#insp'), obj = findSel(), R = ui.simRes;
-  let h = `<button class="btn closeSheet" id="closeInsp" aria-label="Close">Close</button>`;
+  let h = `<div class="inspHead"><b>Details</b><button class="btn" id="closeInsp" aria-label="Close details panel">Close<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>`;
   if (ui.sel?.part && obj) {
     const p = obj, d = DEF[p.type], inf = infoOf(p);
     h += `<p class="ptitle">${esc(p.label)}</p><p class="psub">${esc(d.name)}${d.value ? ' · ' + esc(d.value(p)) : ''}</p>`;
@@ -1888,7 +1893,7 @@ $('#insp').addEventListener('change', e => {
 });
 $('#insp').addEventListener('click', e => {
   const b = e.target.closest('button'); if (!b) return;
-  if (b.id === 'closeInsp') { $('#insp').classList.remove('open'); return; }
+  if (b.id === 'closeInsp') { setInsp(false); $('#tInfo').focus({preventScroll:true}); return; }
   if (b.dataset.wc) { const w = findSel(); if (w) { snapshot(); w.color = b.dataset.wc; save(); render(); } return; }
   const a = b.dataset.do;
   if (a === 'rot') rotateSel(); else if (a === 'del') deleteSel();
@@ -2759,7 +2764,15 @@ $('#tParts').onclick = () => setBin(!binShown());
 $('#closeBin').onclick = () => { setBin(false); $('#tParts').focus({preventScroll:true}); };
 // Tapping the dimmed breadboard beside the list only closes the list, so a stray tap never moves a part or starts a wire.
 $('#binScrim').addEventListener('pointerdown', e => { e.preventDefault(); e.stopPropagation(); setBin(false); });
-$('#tInfo').onclick = () => $('#insp').classList.toggle('open');
+const inspShown = () => narrow() ? $('#insp').classList.contains('open') : !$('.work').classList.contains('inspHidden');
+// Same idea as the parts list: a sheet on narrow screens, a side panel that can be hidden on wide ones.
+function setInsp(open) {
+  if (narrow()) $('#insp').classList.toggle('open', open);
+  else { $('.work').classList.toggle('inspHidden', !open); try { localStorage.setItem('circuit-bench-insp-hidden', open ? '0' : '1'); } catch (e) {} staticKey = ''; render(); }
+  $('#tInfo').setAttribute('aria-expanded', inspShown());
+}
+try { if (localStorage.getItem('circuit-bench-insp-hidden') === '1') $('.work').classList.add('inspHidden'); } catch (e) {}
+$('#tInfo').onclick = () => setInsp(!inspShown());
 $('#tLayer').onclick = () => { ui.layer = ui.layer === 'top' ? 'bottom' : 'top'; render(); };
 $('#tRoute').onclick = () => { const A = pcbAnalyze(); if (!A.rats.length) { toast('Everything is already routed.'); return; } snapshot(); for (const r of A.rats) state.traces.push({id:nid(), a:r.a, b:r.b, pts:[], layer:ui.layer}); save(); render(); toast(`Added ${A.rats.length} straight traces. Fix any red crossings by moving a trace to the other layer.`); };
 $('#zIn').onclick = () => { const r = svg.getBoundingClientRect(); zoomAt(r.left + r.width/2, r.top + r.height/2, 1.25); };
