@@ -3,6 +3,13 @@ name: Build apps
 on:
   push:
     branches: [main]
+    paths:
+      - 'www/**'
+      - 'assets/**'
+      - 'scripts/**'
+      - 'android-signing/**'
+      - 'package.json'
+      - 'capacitor.config.json'
   workflow_dispatch:
 
 permissions:
@@ -10,7 +17,7 @@ permissions:
 
 concurrency:
   group: build-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 jobs:
   web:
@@ -118,24 +125,3 @@ jobs:
             **iPhone / iPad:** `CircuitBench-unsigned.ipa` must be signed before it can be installed. Open it in a sideloading app that signs with your own Apple ID (for example SideStore, AltStore or Sideloadly). Free Apple IDs need the app re-signed every 7 days; your projects are kept when it is refreshed.
 
             Your projects are stored only on your own device.
-
-  pages:
-    name: Website (GitHub Pages)
-    needs: web
-    runs-on: ubuntu-latest
-    continue-on-error: true
-    permissions:
-      pages: write
-      id-token: write
-    environment:
-      name: github-pages
-    steps:
-      - uses: actions/download-artifact@v4
-        with:
-          name: www
-          path: www
-      - uses: actions/configure-pages@v5
-      - uses: actions/upload-pages-artifact@v3
-        with:
-          path: www
-      - uses: actions/deploy-pages@v4
