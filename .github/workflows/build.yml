@@ -1,0 +1,141 @@
+name: Build apps
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  web:
+    name: Prepare web files
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download PDF and zip libraries for offline use
+        run: bash scripts/fetch-vendor.sh
+      - uses: actions/upload-artifact@v4
+        with:
+          name: www
+          path: www
+
+  android:
+    name: Android APK
+    needs: web
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: www
+          path: www
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+      - run: npm install --no-audit --no-fund
+      - run: npx cap add android
+      - name: App icon and splash screen
+        run: npx @capacitor/assets generate --android --iconBackgroundColor '#1d7566' --iconBackgroundColorDark '#1d7566' --splashBackgroundColor '#e6ebe9' --splashBackgroundColorDark '#0f1514'
+      - run: python3 scripts/patch_android.py ${{ github.run_number }}
+      - run: npx cap sync android
+      - name: Build signed APK
+        working-directory: android
+        env:
+          CB_STORE_PASSWORD: circuitbench-public
+        run: ./gradlew assembleRelease --no-daemon --stacktrace
+      - run: cp android/app/build/outputs/apk/release/app-release.apk CircuitBench.apk
+      - uses: actions/upload-artifact@v4
+        with:
+          name: android-apk
+          path: CircuitBench.apk
+
+  ios:
+    name: iOS IPA (unsigned)
+    needs: web
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: www
+          path: www
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm install --no-audit --no-fund
+      - run: npx cap add ios
+      - name: App icon and splash screen
+        run: npx @capacitor/assets generate --ios --iconBackgroundColor '#1d7566' --iconBackgroundColorDark '#1d7566' --splashBackgroundColor '#e6ebe9' --splashBackgroundColorDark '#0f1514'
+      - run: npx cap sync ios
+      - name: Build without code signing
+        run: |
+          if [ -d ios/App/App.xcworkspace ]; then TARGET="-workspace ios/App/App.xcworkspace"; else TARGET="-project ios/App/App.xcodeproj"; fi
+          xcodebuild $TARGET -scheme App -configuration Release -sdk iphoneos -destination 'generic/platform=iOS' \
+            -derivedDataPath build CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" \
+            CURRENT_PROJECT_VERSION=${{ github.run_number }} MARKETING_VERSION=1.0.${{ github.run_number }} build | tail -40
+      - name: Package IPA
+        run: |
+          APP=$(find build/Build/Products -maxdepth 2 -name "App.app" -type d | head -1)
+          test -n "$APP"
+          mkdir -p Payload && cp -R "$APP" Payload/
+          zip -qry CircuitBench-unsigned.ipa Payload
+          ls -la CircuitBench-unsigned.ipa
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ios-ipa
+          path: CircuitBench-unsigned.ipa
+
+  release:
+    name: Publish download page
+    needs: [android, ios]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: out
+          merge-multiple: true
+      - uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v1.0.${{ github.run_number }}
+          name: Circuit Bench 1.0.${{ github.run_number }}
+          make_latest: true
+          files: |
+            out/CircuitBench.apk
+            out/CircuitBench-unsigned.ipa
+          body: |
+            **Android:** download `CircuitBench.apk` on your phone or tablet and open it. Allow "Install unknown apps" for your browser or Files app when asked.
+
+            **iPhone / iPad:** `CircuitBench-unsigned.ipa` must be signed before it can be installed. Open it in a sideloading app that signs with your own Apple ID (for example SideStore, AltStore or Sideloadly). Free Apple IDs need the app re-signed every 7 days; your projects are kept when it is refreshed.
+
+            Your projects are stored only on your own device.
+
+  pages:
+    name: Website (GitHub Pages)
+    needs: web
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: www
+          path: www
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: www
+      - uses: actions/deploy-pages@v4
