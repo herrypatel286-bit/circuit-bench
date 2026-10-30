@@ -2,6 +2,12 @@
   "appId": "io.github.herrypatel286.circuitbench",
   "appName": "Circuit Bench",
   "webDir": "www",
-  "android": { "allowMixedContent": false },
-  "ios": { "contentInset": "never", "scrollEnabled": false }
+  "android": {
+    "allowMixedContent": false
+  },
+  "ios": {
+    "contentInset": "never",
+    "scrollEnabled": false
+  },
+  "zoomEnabled": false
 }

@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#1d7566">
 <meta name="description" content="Circuit Bench: design breadboard circuits, schematics and PCBs, and simulate Arduino sketches.">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -39,7 +39,7 @@
   --good:#3fbf75; --warn:#e0a640; --bad:#ef6a5a; --shadow:0 6px 24px rgba(0,0,0,.45); color-scheme:dark}
 [hidden]{display:none!important}
 *,*::before,*::after{box-sizing:border-box}
-html,body{height:100%}
+html,body{height:100%;touch-action:manipulation;-webkit-text-size-adjust:100%}
 body{background:var(--bg);color:var(--ink);font-family:var(--f-body);overflow:hidden;-webkit-tap-highlight-color:transparent}
 #app{height:100%;display:flex;flex-direction:column}
 button,select,input,textarea{font:inherit;color:inherit}
@@ -2868,6 +2868,18 @@ $('#binList').addEventListener('click', e => {
 new ResizeObserver(() => render()).observe(svg);
 matchMedia('(prefers-color-scheme: dark)').addEventListener?.('change', () => { staticKey = ''; render(); });
 new MutationObserver(() => { staticKey = ''; render(); }).observe(document.documentElement, {attributes:true, attributeFilter:['data-theme']});
+
+/* ============ keep the page itself from zooming (iPad app) ============ */
+// iPadOS can zoom the whole page with a quick double/triple tap or a pinch outside the board. In the installed app there is no
+// way back, so block it, and if it ever happens, reset the zoom. Zooming the board itself is handled by the board.
+['gesturestart', 'gesturechange'].forEach(t => document.addEventListener(t, e => e.preventDefault(), {passive:false}));
+function resetPageZoom() {
+  const vv = window.visualViewport; if (!vv || vv.scale <= 1.01) return;
+  const m = document.querySelector('meta[name=viewport]'); if (!m) return;
+  const c = m.getAttribute('content'); m.setAttribute('content', c.replace(/,?\s*maximum-scale=[\d.]+/, '') + ', maximum-scale=1');
+  setTimeout(() => m.setAttribute('content', c), 120);
+}
+window.visualViewport?.addEventListener('resize', () => setTimeout(resetPageZoom, 250));
 
 /* ============ boot ============ */
 (async function boot() {
